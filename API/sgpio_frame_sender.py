@@ -1,8 +1,8 @@
 import queue
 import threading
-from serial_gpio.teensy_serial_handler import TeensySerialHandler
-from serial_gpio.sgpio_frame_handler import SGPIOFrameHandler
-from serial_gpio.frame_codec import RequestFrame
+from .teensy_serial_handler import TeensySerialHandler
+from .sgpio_frame_handler import SGPIOFrameHandler
+from .frame_codec import RequestFrame
 
 
 class SGPIOFrameSender:

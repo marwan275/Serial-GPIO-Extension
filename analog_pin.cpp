@@ -21,8 +21,6 @@ namespace
                             request, globalResponseQueue, kRequestQueueDepth, kWorkerStackDepth, kWorkerName,
                             [](const Frame::RequestFrame &r, PinModeConfig &config) -> bool {
                                 config.pinType = r.pin_type;
-                                config.resolutionBits = static_cast<uint8_t>(r.value / 100);
-                                config.frequency = static_cast<uint32_t>(r.value % 100) * 1000000UL;
 
                                 if (r.type == FrameType::kRead)
                                 {
@@ -51,15 +49,6 @@ void AnalogPinSession::init()
     if (isInitialized_)
     {
         return;
-    }
-
-    if (config_.frequency > 0)
-    {
-        analogWriteFrequency(pinNumber_, config_.frequency);
-    }
-    if (config_.resolutionBits > 0)
-    {
-        analogWriteResolution(config_.resolutionBits);
     }
 
     if (config_.pinMode == PinMode::kOutput)
@@ -103,7 +92,5 @@ PinModeConfig AnalogPinSession::pinConfigFromRequest(const Frame::RequestFrame &
 {
     return PinModeConfig{
         .pinType = request.pin_type,
-        .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput,
-        .frequency = static_cast<uint32_t>(request.value % 100) * 1000000UL,
-        .resolutionBits = static_cast<uint8_t>(request.value / 100)};
+    .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
 }

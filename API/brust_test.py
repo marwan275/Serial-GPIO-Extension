@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 burst_test.py – sends a burst of digitalRead requests and prints latency stats.
-Usage: python3 burst_test.py [burst_size]   (default 200)
+Usage: python -m serial_gpio.brust_test [burst_size]   (default 200)
 """
 
 import sys
 import time
 import rclpy
 from rclpy.node import Node
-from serial_gpio.sgpio_lib import SGPIO
+from .sgpio_lib import SGPIO
 
 
 class BurstTestNode(Node):

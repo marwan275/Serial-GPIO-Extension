@@ -3,32 +3,21 @@
 
 #include "frame.h"
 #include "codec.h"
-
-#if defined(ARDUINO) || defined(TEENSYDUINO)
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <task.h>
 #include <Arduino.h>
-#else
-#include "tests/host_shims/FreeRTOS.h"
-#include "tests/host_shims/queue.h"
-#include "tests/host_shims/task.h"
-#endif
 
 struct PinModeConfig
 {
     PinType pinType = PinType::kNone;
     PinMode pinMode = PinMode::kNone;
-    uint32_t frequency = 0;
-    uint8_t resolutionBits = 0;
 };
 
 inline bool operator==(const PinModeConfig &lhs, const PinModeConfig &rhs)
 {
     return lhs.pinType == rhs.pinType &&
-           lhs.pinMode == rhs.pinMode &&
-           lhs.frequency == rhs.frequency &&
-           lhs.resolutionBits == rhs.resolutionBits;
+           lhs.pinMode == rhs.pinMode;
 }
 
 inline bool operator!=(const PinModeConfig &lhs, const PinModeConfig &rhs)

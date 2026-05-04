@@ -1,10 +1,16 @@
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from serial_gpio_interfaces.action import GpioFrame
-from serial_gpio.frame_codec import (
-    RequestFrame, FrameType, PinType, FramePriority,
-    FRAME_TYPE_TO_INT, PIN_TYPE_TO_INT, PRIORITY_TO_INT
+from .frame_codec import (
+    RequestFrame,
+    FrameType,
+    PinType,
+    FramePriority,
+    FRAME_TYPE_TO_INT,
+    PIN_TYPE_TO_INT,
+    PRIORITY_TO_INT,
 )
+
 
 class SGPIO:
     """
@@ -15,6 +21,7 @@ class SGPIO:
     def __init__(self, node: Node, client_id: int, action_name="/sgpio/frame"):
         self.node = node
         self.client_id = client_id
+        self.action_name = action_name
         self._req_id = 0
         self._action_client = ActionClient(node, GpioFrame, action_name)
         self.logger = node.get_logger()
@@ -29,12 +36,21 @@ class SGPIO:
         done_callback(result: GpioFrame.Result) will be called on success,
         or done_callback(None) if the goal is rejected or fails.
         """
+        if not self._action_client.server_is_ready():
+            self.logger.info(f"SGPIO: waiting for action server {self.action_name}")
+            if not self._action_client.wait_for_server(timeout_sec=2.0):
+                self.logger.error(
+                    f"SGPIO: action server {self.action_name} not available"
+                )
+                done_callback(None)
+                return
+
         goal = GpioFrame.Goal()
         goal.client_id = self.client_id
         goal.request_id = frame.request_id
-        goal.type        = FRAME_TYPE_TO_INT[frame.type]
-        goal.pin_type    = PIN_TYPE_TO_INT[frame.pin_type]
-        goal.priority    = PRIORITY_TO_INT[frame.priority]
+        goal.type = FRAME_TYPE_TO_INT[frame.type]
+        goal.pin_type = PIN_TYPE_TO_INT[frame.pin_type]
+        goal.priority = PRIORITY_TO_INT[frame.priority]
         goal.pin_number = frame.pin_number
         goal.value = frame.value
 

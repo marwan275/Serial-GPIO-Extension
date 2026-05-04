@@ -10,7 +10,7 @@ Four SGPIO clients in the same node:
 
 import rclpy
 from rclpy.node import Node
-from serial_gpio.sgpio_lib import SGPIO
+from .sgpio_lib import SGPIO
 
 
 class MultiClientNode(Node):
@@ -23,8 +23,10 @@ class MultiClientNode(Node):
         self.gpio_analog = SGPIO(self, client_id=3)  # analog read (pin 34)
         self.gpio_servo = SGPIO(self, client_id=4)  # servo write (pin 9)
 
-        # Start the first write (LED on)
-        self.gpio_led.digitalWrite(13, True, done_callback=self.on_led_on)
+        # Blink the LED with a simple periodic toggle.
+        self.led_state = False
+        self.led_write_in_flight = False
+        self.led_timer = self.create_timer(0.5, self.trigger_led_blink)
 
         # Periodic sensor reading every 1 second
         self.read_timer = self.create_timer(1.0, self.trigger_digital_read)
@@ -39,42 +41,26 @@ class MultiClientNode(Node):
         self.get_logger().info("Multi-client node started (4 clients)")
 
     # ──────────────────── LED BLINK (client 1) ────────────────────
-    def on_led_on(self, result):
+    def trigger_led_blink(self):
+        if self.led_write_in_flight:
+            return
+
+        next_state = not self.led_state
+        self.led_write_in_flight = True
+        self.gpio_led.digitalWrite(
+            13,
+            next_state,
+            done_callback=lambda result: self.on_led_write(result, next_state),
+        )
+
+    def on_led_write(self, result, next_state):
+        self.led_write_in_flight = False
         if result and result.success:
-            self.get_logger().info("LED ON - scheduling OFF in 0.5s")
-            self._schedule_one_shot(0.5, self._turn_off_led)
+            self.led_state = next_state
+            state_label = "ON" if self.led_state else "OFF"
+            self.get_logger().info(f"LED {state_label}")
         else:
-            self.get_logger().error("LED on failed")
-
-    def _turn_off_led(self):
-        self.gpio_led.digitalWrite(13, False, done_callback=self.on_led_off)
-
-    def on_led_off(self, result):
-        if result and result.success:
-            self.get_logger().info("LED OFF - scheduling ON in 0.5s")
-            self._schedule_one_shot(0.5, self._turn_on_led)
-        else:
-            self.get_logger().error("LED off failed")
-
-    def _turn_on_led(self):
-        self.gpio_led.digitalWrite(13, True, done_callback=self.on_led_on)
-
-    # ──────────────────── ONE‑SHOT TIMER HELPER ──────────────────
-    def _schedule_one_shot(self, delay_sec, callback):
-        """Creates a timer that fires once, then cancels itself."""
-        timer = self.create_timer(delay_sec, callback)
-        # Store reference to prevent garbage collection
-        if not hasattr(self, "_one_shot_timers"):
-            self._one_shot_timers = []
-        self._one_shot_timers.append(timer)
-        # Redefine the callback to cancel itself after first call
-        original_cb = timer.callback
-
-        def one_shot_wrapper():
-            timer.cancel()
-            original_cb()
-
-        timer.callback = one_shot_wrapper
+            self.get_logger().error("LED write failed")
 
     # ──────────────────── DIGITAL READ (client 2) ────────────────
     def trigger_digital_read(self):

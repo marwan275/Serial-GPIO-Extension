@@ -7,10 +7,10 @@ from rclpy.executors import MultiThreadedExecutor
 import threading
 import queue
 
-from serial_gpio.teensy_serial_handler import TeensySerialHandler
-from serial_gpio.sgpio_frame_sender import SGPIOFrameSender
-from serial_gpio.sgpio_frame_receiver import SGPIOFrameReceiver
-from serial_gpio.frame_codec import (
+from .teensy_serial_handler import TeensySerialHandler
+from .sgpio_frame_sender import SGPIOFrameSender
+from .sgpio_frame_receiver import SGPIOFrameReceiver
+from .frame_codec import (
     RequestFrame,
     ResponseFrame,
     INT_TO_FRAME_TYPE,
@@ -18,7 +18,6 @@ from serial_gpio.frame_codec import (
     INT_TO_PRIORITY,
     ErrorCode,
     FrameType,
-    PinType,
 )
 
 # The action definition
@@ -120,7 +119,7 @@ class GpioServer(Node):
             goal_handle.abort()
             result = GpioFrame.Result()
             result.success = False
-            result.error_code = ErrorCode.QUEUE_FULL
+            result.error_code = ErrorCode.QUEUE_FULL.value
             result.message = "Sender queue full"
             return result
 

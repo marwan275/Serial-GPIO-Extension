@@ -1,15 +1,9 @@
 #ifndef REQUEST_FRAME_PARSER_H
 #define REQUEST_FRAME_PARSER_H
 
-#if defined(ARDUINO) || defined(TEENSYDUINO)
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <Stream.h>
-#else
-#include "tests/host_shims/FreeRTOS.h"
-#include "tests/host_shims/queue.h"
-#include "tests/host_shims/Stream.h"
-#endif
 #include <array>
 #include "frame.h"
 

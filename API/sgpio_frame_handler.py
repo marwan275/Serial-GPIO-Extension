@@ -1,4 +1,4 @@
-from serial_gpio.frame_codec import (
+from .frame_codec import (
     RequestFrame,
     FrameType,
     PinType,

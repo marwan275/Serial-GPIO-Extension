@@ -1,9 +1,5 @@
 #include "digital_pin.h"
-
-#if defined(ARDUINO) || defined(TEENSYDUINO)
 #include <Arduino.h>
-#endif
-
 #include "pin_session_factory.h"
 #include <memory>
 
@@ -105,7 +101,5 @@ PinModeConfig DigitalPinSession::pinConfigFromRequest(const Frame::RequestFrame 
 {
     return PinModeConfig{
         .pinType = request.pin_type,
-        .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput,
-        .frequency = 0,
-        .resolutionBits = 0};
+    .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
 }
