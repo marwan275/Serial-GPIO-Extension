@@ -1,0 +1,15 @@
+# Request (goal)
+uint16 client_id
+uint16 request_id
+uint8  type
+uint8  pin_type
+uint8  priority
+uint8  pin_number
+uint16 value
+---
+# Result
+bool success
+uint16 result_value
+uint8 error_code
+string message
+---
