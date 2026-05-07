@@ -17,6 +17,7 @@ class PinType(Enum):
     DIGITAL = "D"
     ANALOG = "A"
     SERVO = "S"
+    MCP4725 = "G"
 
 
 class FramePriority(Enum):
@@ -83,6 +84,7 @@ PIN_TYPE_TO_INT = {
     PinType.DIGITAL: 1,
     PinType.ANALOG: 2,
     PinType.SERVO: 3,
+    PinType.MCP4725: 4,
 }
 
 PRIORITY_TO_INT = {

@@ -142,3 +142,16 @@ class SGPIO:
             value=angle,
         )
         self._send_goal(frame, done_callback)
+
+    def mcp4725Write(
+        self, address: int, value: int, done_callback, priority: bool = False
+    ):
+        frame = RequestFrame(
+            request_id=self._next_id(),
+            type=FrameType.WRITE,
+            pin_type=PinType.MCP4725,
+            priority=FramePriority.LOW if not priority else FramePriority.HIGH,
+            pin_number=address,
+            value=value,
+        )
+        self._send_goal(frame, done_callback)

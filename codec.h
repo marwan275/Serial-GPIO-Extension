@@ -21,6 +21,7 @@ enum class PinType : uint8_t
     kDigital = 'D',
     kAnalog = 'A',
     kServo = 'S',
+    kMCP4725 = 'G',
 };
 
 enum class PinMode : uint8_t
@@ -87,6 +88,8 @@ namespace PinTypeCodec
             return PinType::kAnalog;
         case 'S':
             return PinType::kServo;
+        case 'G':
+            return PinType::kMCP4725;
         default:
             return PinType::kNone;
         }
@@ -111,7 +114,8 @@ namespace RequestSemantics
         case FrameType::kWrite:
             return pinType == PinType::kDigital ||
                    pinType == PinType::kAnalog ||
-                   pinType == PinType::kServo;
+                   pinType == PinType::kServo ||
+                   pinType == PinType::kMCP4725;
         default:
             return false;
         }

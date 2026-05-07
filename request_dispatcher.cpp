@@ -28,7 +28,7 @@ void RequestDispatcher::run()
 
 void RequestDispatcher::dispatchRequest(const Frame::RequestFrame &request)
 {
-    if (!PinRegistry::isValidPinNumber(request.pin_number))
+    if (!PinRegistry::isValidPinNumber(request.pin_type, request.pin_number))
     {
         sendErrorResponse(request.request_id, ErrorCode::kBadPin);
         return;
@@ -45,7 +45,7 @@ void RequestDispatcher::dispatchRequest(const Frame::RequestFrame &request)
 
 void RequestDispatcher::handleRuntimeRequest(const Frame::RequestFrame &request)
 {
-    PinSession *session = PinRegistry::findSession(request.pin_number);
+    PinSession *session = PinRegistry::findSession(request.pin_type, request.pin_number);
     if (session == nullptr)
     {
         if (!createPinSession(request))
@@ -53,7 +53,7 @@ void RequestDispatcher::handleRuntimeRequest(const Frame::RequestFrame &request)
             return;
         }
 
-        session = PinRegistry::findSession(request.pin_number);
+        session = PinRegistry::findSession(request.pin_type, request.pin_number);
         if (session == nullptr)
         {
             sendErrorResponse(request.request_id, ErrorCode::kUnsupported);
@@ -84,7 +84,7 @@ bool RequestDispatcher::createPinSession(const Frame::RequestFrame &request)
         return false;
     }
 
-    PinRegistry::pinSessions[request.pin_number] = std::move(session);
+    PinRegistry::storeSession(request.pin_type, request.pin_number, std::move(session));
     return true;
 }
 

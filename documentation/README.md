@@ -54,7 +54,7 @@ Examples:
 Protocol enums currently map as follows:
 
 - Frame types: `R` read, `W` write, `S` response, `E` error, `B` debug
-- Pin types: `D` digital, `A` analog, `S` servo
+- Pin types: `D` digital, `A` analog, `S` servo, `G` MCP4725 DAC
 - Priorities: `L` low, `H` high
 
 ## Current supported behavior
@@ -64,13 +64,15 @@ Protocol enums currently map as follows:
 - Analog read
 - Analog write through `AnalogPinSession`
 - Servo write
+- MCP4725 DAC write through `MCP4725PinSession`
 - High-priority request enqueue that clears any pending requests already queued for the same pin session
 
 ## Pin session model
 
 - Sessions are created lazily from the first valid request for a pin.
-- The registry is indexed by physical pin number and currently allows pins `1..41`.
-- There is exactly one live `PinSession` per pin number.
+- Most sessions are indexed by physical pin number and currently allow pins `1..41`.
+- I2C-backed sessions are indexed separately by I2C address and use the request `pin_number` field as that address.
+- There is exactly one live `PinSession` per physical pin or I2C address.
 - A later request is accepted only if it matches the existing session's derived configuration.
 - If a request does not match the existing session configuration, the dispatcher returns `ErrorCode::kUnsupported`.
 
@@ -81,6 +83,7 @@ Current session mapping:
 - Analog read creates an input-mode analog session.
 - Analog write creates an output-mode analog session.
 - Servo supports write only.
+- MCP4725 is the first I2C-backed session type. It supports write only and initializes the addressed DAC with a hardcoded 5000 mV reference.
 
 ## Important current limitations
 

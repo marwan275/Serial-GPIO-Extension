@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 multi_client_example.py
-Four SGPIO clients in the same node:
+Five SGPIO clients in the same node:
   - Client 1 blinks a digital output on pin 13 (period ~1s)
   - Client 2 reads a digital input from pin 12 every 1 second
   - Client 3 reads an analog input from pin 34 every 2 seconds
   - Client 4 sweeps a servo on pin 9 between 0° and 180° every 2 seconds
+  - Client 5 writes to a DAC (MCP4725 on I2C) every 2 seconds
 """
 
 import rclpy
@@ -22,6 +23,7 @@ class MultiClientNode(Node):
         self.gpio_sensor = SGPIO(self, client_id=2)  # digital read (pin 12)
         self.gpio_analog = SGPIO(self, client_id=3)  # analog read (pin 34)
         self.gpio_servo = SGPIO(self, client_id=4)  # servo write (pin 9)
+        self.gpio_dac = SGPIO(self, client_id=5)  # DAC write (MCP4725 on I2C)
 
         # Blink the LED with a simple periodic toggle.
         self.led_state = False
@@ -38,7 +40,10 @@ class MultiClientNode(Node):
         self.servo_angle = 0
         self.servo_timer = self.create_timer(1.0, self.trigger_servo_sweep)
 
-        self.get_logger().info("Multi-client node started (4 clients)")
+        self.dac_value = 0
+        self.dac_timer = self.create_timer(2.0, self.trigger_dac_write)
+
+        self.get_logger().info("Multi-client node started (5 clients)")
 
     # ──────────────────── LED BLINK (client 1) ────────────────────
     def trigger_led_blink(self):
@@ -95,6 +100,18 @@ class MultiClientNode(Node):
             self.get_logger().info(f"Servo pin 9 set to {self.servo_angle}°")
         else:
             self.get_logger().error("Servo write failed")
+
+    # ──────────────────── DAC WRITE (client 5) ─────────────────
+    def trigger_dac_write(self):
+        # Increment DAC value by 1000 every 2 seconds, wrap around at 4095
+        self.dac_value = (self.dac_value + 1000) % 4096
+        self.gpio_dac.dacWrite(0x60, self.dac_value, done_callback=self.on_dac_write)
+
+    def on_dac_write(self, result):
+        if result and result.success:
+            self.get_logger().info(f"DAC value set to {self.dac_value}")
+        else:
+            self.get_logger().error("DAC write failed")
 
 
 def main():
