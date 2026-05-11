@@ -1,6 +1,6 @@
 import queue
 import threading
-from .teensy_serial_handler import TeensySerialHandler
+from .teensy_serial_handler import SerialPortError, TeensySerialHandler
 from .sgpio_frame_handler import SGPIOFrameHandler
 from .frame_codec import ResponseFrame
 
@@ -29,6 +29,9 @@ class SGPIOFrameReceiver:
         """Starts the receiver thread. This will continuously read frames from the serial connection and put them in the queue."""
         self._thread.start()
 
+    def join(self, timeout=None):
+        self._thread.join(timeout)
+
     def _receiver_loop(self):
         while not self.stop_token.is_set():
             try:
@@ -45,5 +48,11 @@ class SGPIOFrameReceiver:
                     # log unexpected frame types (e.g., a RequestFrame echoed back)
                     self.logger.debug(f"Ignored unsupported frame: {type(frame_obj)}")
             except Exception as e:
+                if self.stop_token.is_set():
+                    break
+                if isinstance(e, SerialPortError):
+                    self.logger.error(f"Receiver loop stopping after serial error: {e}")
+                    self.stop_token.set()
+                    break
                 self.logger.error(f"Error in receiver loop: {e}")
                 continue

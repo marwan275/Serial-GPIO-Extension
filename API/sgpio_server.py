@@ -1,4 +1,3 @@
-# serial_gpio/sgpio_server.py
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer
@@ -21,7 +20,7 @@ from .frame_codec import (
 )
 
 # The action definition
-from serial_gpio_interfaces.action import GpioFrame
+from interfaces.action import GpioFrame
 
 
 class GpioServer(Node):
@@ -70,6 +69,26 @@ class GpioServer(Node):
         self.receiver.start()
 
         self.get_logger().info("SGPIO Server Ready")
+
+    def destroy_node(self):
+        self.stop_token.set()
+
+        if hasattr(self, "_action_server"):
+            self._action_server.destroy()
+
+        if hasattr(self, "sender"):
+            self.sender.join(timeout=1.0)
+
+        if hasattr(self, "receiver"):
+            self.receiver.join(timeout=1.5)
+
+        if hasattr(self, "receiver_thread"):
+            self.receiver_thread.join(timeout=1.0)
+
+        if hasattr(self, "serial_handler"):
+            self.serial_handler.disconnect(log_disconnect=False)
+
+        return super().destroy_node()
 
     # ---------- Action callback ----------
     def execute_callback(self, goal_handle):
@@ -207,34 +226,27 @@ class GpioServer(Node):
         return sid
 
 
-def main():
-    rclpy.init()
-    node = GpioServer()
-
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
+def main(args=None):
+    rclpy.init(args=args)
+    node = None
+    executor = None
 
     try:
-        print("Entering spin...")
+        node = GpioServer()
+        executor = MultiThreadedExecutor()
+        executor.add_node(node)
         executor.spin()
-        print("Spin returned.")  # if we ever see this, something is wrong
     except KeyboardInterrupt:
-        print("Keyboard interrupt")
-    except Exception as e:
-        print(f"Exception in spin: {e}")
-        import traceback
-
-        traceback.print_exc()
+        pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
-        print("Shutdown complete.")
+        if executor is not None:
+            executor.shutdown()
 
-    # Keep the process alive for inspection
-    import time
+        if node is not None:
+            node.destroy_node()
 
-    time.sleep(5)  # 5 seconds to check if server is alive
-    print("Exiting main.")
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

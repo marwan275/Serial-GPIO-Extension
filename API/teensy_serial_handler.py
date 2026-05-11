@@ -9,7 +9,7 @@ class SerialPortError(Exception):
 class TeensySerialHandler:
     TEENSY_VID = 0x16C0
 
-    def __init__(self,logger):
+    def __init__(self, logger):
         self.logger = logger
         self.serial_port: serial.Serial | None = None
         self._rx_buffer = bytearray()
@@ -102,10 +102,17 @@ class TeensySerialHandler:
         except serial.SerialException as exc:
             raise SerialPortError(f"Failed to open serial port {port}: {exc}") from exc
 
-    def disconnect(self):
-        if self.serial_port and self.serial_port.is_open:
+    def disconnect(self, log_disconnect: bool = True):
+        if self.serial_port is None:
+            return
+
+        if self.serial_port.is_open:
             self.serial_port.close()
-            self.reset_rx()
+
+        self.serial_port = None
+        self.reset_rx()
+
+        if log_disconnect:
             self.logger.info("Serial port disconnected")
 
     def reset_rx(self):

@@ -1,6 +1,6 @@
 from rclpy.action import ActionClient
 from rclpy.node import Node
-from serial_gpio_interfaces.action import GpioFrame
+from interfaces.action import GpioFrame
 from .frame_codec import (
     RequestFrame,
     FrameType,
@@ -25,6 +25,19 @@ class SGPIO:
         self._req_id = 0
         self._action_client = ActionClient(node, GpioFrame, action_name)
         self.logger = node.get_logger()
+
+    def _fail_request(self, message: str, done_callback, exc: Exception | None = None):
+        if exc is None:
+            self.logger.error(message)
+        else:
+            self.logger.error(f"{message}: {exc}")
+
+        try:
+            done_callback(None)
+        except Exception as callback_exc:
+            self.logger.error(
+                f"SGPIO: failure callback raised while handling error: {callback_exc}"
+            )
 
     def _next_id(self) -> int:
         self._req_id += 1
@@ -55,31 +68,56 @@ class SGPIO:
         goal.value = frame.value
 
         self.logger.info(
-            f"SGPIO: sending goal {goal.request_id} (pin {goal.pin_number})"
+            f"SGPIO: sending goal {goal.request_id} (pin {goal.pin_number}), value={goal.value}, type={frame.type.name}, pin_type={frame.pin_type.name}, priority={frame.priority.name}"
         )
 
         # 1) Send the goal
-        send_future = self._action_client.send_goal_async(goal)
+        try:
+            send_future = self._action_client.send_goal_async(goal)
+        except Exception as exc:
+            self._fail_request("SGPIO: failed to send goal", done_callback, exc)
+            return
+
         # 2) When the goal is accepted, fetch the result
         send_future.add_done_callback(
             lambda future: self._on_goal_response(future, done_callback)
         )
 
     def _on_goal_response(self, send_future, done_callback):
-        goal_handle = send_future.result()
-        if not goal_handle.accepted:
-            self.logger.error("SGPIO: goal rejected")
-            done_callback(None)  # signal failure
+        try:
+            goal_handle = send_future.result()
+        except Exception as exc:
+            self._fail_request("SGPIO: goal response failed", done_callback, exc)
             return
 
-        result_future = goal_handle.get_result_async()
+        if goal_handle is None or not goal_handle.accepted:
+            self._fail_request("SGPIO: goal rejected", done_callback)
+            return
+
+        try:
+            result_future = goal_handle.get_result_async()
+        except Exception as exc:
+            self._fail_request(
+                "SGPIO: failed to request action result", done_callback, exc
+            )
+            return
+
         result_future.add_done_callback(
             lambda future: self._on_result(future, done_callback)
         )
 
     def _on_result(self, result_future, done_callback):
-        response = result_future.result()  # action result wrapper
-        result = response.result  # the actual GpioFrame.Result
+        try:
+            response = result_future.result()  # action result wrapper
+        except Exception as exc:
+            self._fail_request("SGPIO: result retrieval failed", done_callback, exc)
+            return
+
+        result = getattr(response, "result", None)
+        if result is None:
+            self._fail_request("SGPIO: action result was empty", done_callback)
+            return
+
         done_callback(result)
 
     def digitalWrite(
@@ -155,3 +193,12 @@ class SGPIO:
             value=value,
         )
         self._send_goal(frame, done_callback)
+
+    def dacWrite(self, address: int, value: int, done_callback, priority: bool = False):
+        self.mcp4725Write(address, value, done_callback, priority)
+
+    def destroy(self) -> None:
+        try:
+            self._action_client.destroy()
+        except Exception:
+            pass

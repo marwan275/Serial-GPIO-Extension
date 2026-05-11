@@ -1,6 +1,6 @@
 import queue
 import threading
-from .teensy_serial_handler import TeensySerialHandler
+from .teensy_serial_handler import SerialPortError, TeensySerialHandler
 from .sgpio_frame_handler import SGPIOFrameHandler
 from .frame_codec import RequestFrame
 
@@ -29,6 +29,9 @@ class SGPIOFrameSender:
         """Starts the sender thread. This will continuously read frames from the queue and send them over serial."""
         self._thread.start()
 
+    def join(self, timeout=None):
+        self._thread.join(timeout)
+
     def _sender_loop(self):
         while not self.stop_token.is_set():
             try:
@@ -44,5 +47,11 @@ class SGPIOFrameSender:
                         f"Warning: Unsupported frame type in sender loop: {type(frame)}"
                     )
             except Exception as e:
+                if self.stop_token.is_set():
+                    break
+                if isinstance(e, SerialPortError):
+                    self.logger.error(f"Sender loop stopping after serial error: {e}")
+                    self.stop_token.set()
+                    break
                 self.logger.error(f"Error in sender loop: {e}")
                 continue
