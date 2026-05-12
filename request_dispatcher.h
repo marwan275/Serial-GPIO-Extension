@@ -19,7 +19,6 @@ private:
     bool enqueuePinRequest(PinSession &session, const Frame::RequestFrame &request);
     void clearPendingRequests(QueueHandle_t requestQueue) const;
 
-    void sendOkResponse(uint16_t requestId, uint16_t value = 0) const;
     void sendErrorResponse(uint16_t requestId, ErrorCode error) const;
 
     QueueHandle_t globalRequestQueue_ = nullptr;

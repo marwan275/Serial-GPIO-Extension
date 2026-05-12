@@ -16,7 +16,6 @@ from .frame_codec import (
     INT_TO_PIN_TYPE,
     INT_TO_PRIORITY,
     ErrorCode,
-    FrameType,
 )
 
 # The action definition
@@ -44,7 +43,7 @@ class GpioServer(Node):
         self._next_serial_id = 0
         self.serial_id_lock = threading.Lock()
         self.serial_id_map_lock = threading.Lock()
-        self.serial_id_map = {}  # serial_id -> (client_id, request_id, goal_handle)
+        self.serial_id_map = {}  # serial request_id -> (goal_handle, completion_event)
 
         # 1) Create sender / receiver
         self.sender = SGPIOFrameSender(
@@ -102,39 +101,29 @@ class GpioServer(Node):
         pin_type = INT_TO_PIN_TYPE[request.pin_type]
         priority = INT_TO_PRIORITY[request.priority]
 
-        # Allocate a unique serial ID only for READs (writes don't need a response)
-        if frame_type == FrameType.READ:
-            sid = self._allocate_serial_id()
-        else:
-            sid = None
+        sid = self._allocate_serial_id()
+        completion_event = threading.Event()
 
-        # # Build the request frame
+        # Build the device request using the server-managed serial request_id.
         request_frame = RequestFrame(
-            request_id=sid if sid is not None else 0,
+            request_id=sid,
             type=frame_type,
             pin_type=pin_type,
             priority=priority,
             pin_number=request.pin_number,
             value=request.value,
         )
-        if frame_type == FrameType.READ:
-            completion_event = threading.Event()
-            with self.serial_id_map_lock:
-                self.serial_id_map[sid] = (
-                    request.request_id,
-                    request.client_id,
-                    goal_handle,
-                    completion_event,
-                )
+
+        with self.serial_id_map_lock:
+            self.serial_id_map[sid] = (goal_handle, completion_event)
 
         # Attempt to enqueue the frame
         try:
             self.sender_frames_queue.put_nowait(request_frame)
         except queue.Full:
             self.get_logger().error("Sender queue full - aborting goal")
-            if frame_type == FrameType.READ:
-                with self.serial_id_map_lock:
-                    self.serial_id_map.pop(sid, None)
+            with self.serial_id_map_lock:
+                self.serial_id_map.pop(sid, None)
             goal_handle.abort()
             result = GpioFrame.Result()
             result.success = False
@@ -142,19 +131,8 @@ class GpioServer(Node):
             result.message = "Sender queue full"
             return result
 
-        # ── WRITE / SERVO: succeed immediately ──
-        if frame_type != FrameType.READ:
-            result = GpioFrame.Result()
-            result.success = True
-            result.result_value = 0
-            result.error_code = 0
-            result.message = "OK (write)"
-            goal_handle.succeed()
-            return result
-
-        # ── READ: wait for serial response ──
-        if not completion_event.wait(timeout=2.0):  # 2 seconds timeout
-            self.get_logger().error(f"Timeout waiting for read response (sid={sid})")
+        if not completion_event.wait(timeout=2.0):
+            self.get_logger().error(f"Timeout waiting for device response (sid={sid})")
             with self.serial_id_map_lock:
                 self.serial_id_map.pop(sid, None)
             goal_handle.abort()
@@ -178,7 +156,12 @@ class GpioServer(Node):
         result.success = response.error == ErrorCode.NONE
         result.result_value = response.value
         result.error_code = response.error.value
-        result.message = "OK" if result.success else f"Error {response.error.value}"
+        if result.success:
+            result.message = "OK"
+        elif response.error == ErrorCode.CANCELLED:
+            result.message = "Cancelled"
+        else:
+            result.message = f"Error {response.error.value}"
 
         if result.success:
             goal_handle.succeed()
@@ -204,13 +187,12 @@ class GpioServer(Node):
 
             serial_id = response.request_id
             with self.serial_id_map_lock:
-                mapping = self.serial_id_map.get(serial_id)  # ← use get, not pop
+                mapping = self.serial_id_map.get(serial_id)
             if mapping is None:
                 self.get_logger().warning(f"Unsolicited response for {serial_id}")
                 continue
 
-            # Unpack the 4-element tuple
-            _, _, goal_handle, event = mapping
+            goal_handle, event = mapping
 
             # Store the response on the goal handle so the waiting thread can pick it up
             goal_handle._serial_response = response

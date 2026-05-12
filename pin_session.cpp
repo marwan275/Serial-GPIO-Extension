@@ -109,3 +109,19 @@ bool PinSession::supportsRequest(const Frame::RequestFrame &request) const
     PinModeConfig requestedConfig = pinConfigFromRequest(request);
     return config_ == requestedConfig;
 }
+
+void PinSession::sendOkResponse(uint16_t requestId, uint16_t value) const
+{
+    if (responseQueue_ == nullptr)
+    {
+        return;
+    }
+
+    Frame::ResponseFrame response{
+        .request_id = requestId,
+        .value = value,
+        .type = FrameType::kResponse,
+        .error = ErrorCode::kNone,
+    };
+    xQueueSend(responseQueue_, &response, portMAX_DELAY);
+}

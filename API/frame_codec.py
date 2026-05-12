@@ -35,6 +35,7 @@ class ErrorCode(Enum):
     MISSING_SESSION = 5
     UNSUPPORTED = 6
     QUEUE_FULL = 7
+    CANCELLED = 8
     NONE = 255
 
 

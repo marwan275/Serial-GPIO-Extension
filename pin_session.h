@@ -53,6 +53,8 @@ public:
 
     bool supportsRequest(const Frame::RequestFrame &request) const;
 
+    void sendOkResponse(uint16_t requestId, uint16_t value = 0) const;
+
     static void WorkerTaskEntry(void *pvParameters);
 
     virtual void init() = 0;

@@ -70,6 +70,7 @@ void MCP4725PinSession::handleRequest(const Frame::RequestFrame &request)
 
     const uint16_t outputMillivolts = request.value > kMcp4725MaxMillivolts ? kMcp4725MaxMillivolts : request.value;
     dac_.outputVoltage(outputMillivolts);
+    sendOkResponse(request.request_id, outputMillivolts);
 }
 
 PinModeConfig MCP4725PinSession::pinConfigFromRequest(const Frame::RequestFrame &request) const

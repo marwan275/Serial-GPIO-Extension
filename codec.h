@@ -48,6 +48,7 @@ enum class ErrorCode : uint8_t
     kMissingSession = 5,
     kUnsupported = 6,
     kQueueFull = 7,
+    kCancelled = 8,
     kNone = 255,
 };
 
@@ -169,6 +170,8 @@ namespace ErrorCodeCodec
             return ErrorCode::kUnsupported;
         case 7:
             return ErrorCode::kQueueFull;
+        case 8:
+            return ErrorCode::kCancelled;
         case 255:
         default:
             return ErrorCode::kNone;

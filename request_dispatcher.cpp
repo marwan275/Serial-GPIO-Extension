@@ -114,23 +114,8 @@ void RequestDispatcher::clearPendingRequests(QueueHandle_t requestQueue) const
     Frame::RequestFrame discardedRequest{};
     while (xQueueReceive(requestQueue, &discardedRequest, 0) == pdPASS)
     {
+        sendErrorResponse(discardedRequest.request_id, ErrorCode::kCancelled);
     }
-}
-
-void RequestDispatcher::sendOkResponse(uint16_t requestId, uint16_t value) const
-{
-    if (globalResponseQueue_ == nullptr)
-    {
-        return;
-    }
-
-    Frame::ResponseFrame response{
-        .request_id = requestId,
-        .value = value,
-        .type = FrameType::kResponse,
-        .error = ErrorCode::kNone,
-    };
-    xQueueSend(globalResponseQueue_, &response, portMAX_DELAY);
 }
 
 void RequestDispatcher::sendErrorResponse(uint16_t requestId, ErrorCode error) const

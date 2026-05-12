@@ -9,39 +9,40 @@ namespace
     {
         DigitalPinFactoryRegistrar()
         {
-                static constexpr UBaseType_t kRequestQueueDepth = 1024;
-                static constexpr uint16_t kWorkerStackDepth = 256;
-                static constexpr char kWorkerName[] = "DigitalPin";
+            static constexpr UBaseType_t kRequestQueueDepth = 1024;
+            static constexpr uint16_t kWorkerStackDepth = 256;
+            static constexpr char kWorkerName[] = "DigitalPin";
 
-                PinSessionFactory::registerFactory(
-                    PinType::kDigital,
-                    [](const Frame::RequestFrame &request, QueueHandle_t globalResponseQueue) -> std::unique_ptr<PinSession>
-                    {
-                        return PinSessionFactory::makeSessionWithResources<DigitalPinSession>(
-                            request, globalResponseQueue, kRequestQueueDepth, kWorkerStackDepth, kWorkerName,
-                            [](const Frame::RequestFrame &r, PinModeConfig &config) -> bool {
-                                config.pinType = r.pin_type;
-                                if (r.pin_type != PinType::kDigital)
-                                {
-                                    return false;
-                                }
+            PinSessionFactory::registerFactory(
+                PinType::kDigital,
+                [](const Frame::RequestFrame &request, QueueHandle_t globalResponseQueue) -> std::unique_ptr<PinSession>
+                {
+                    return PinSessionFactory::makeSessionWithResources<DigitalPinSession>(
+                        request, globalResponseQueue, kRequestQueueDepth, kWorkerStackDepth, kWorkerName,
+                        [](const Frame::RequestFrame &r, PinModeConfig &config) -> bool
+                        {
+                            config.pinType = r.pin_type;
+                            if (r.pin_type != PinType::kDigital)
+                            {
+                                return false;
+                            }
 
-                                if (r.type == FrameType::kRead)
-                                {
-                                    config.pinMode = PinMode::kInput;
-                                }
-                                else if (r.type == FrameType::kWrite)
-                                {
-                                    config.pinMode = PinMode::kOutput;
-                                }
-                                else
-                                {
-                                    return false;
-                                }
+                            if (r.type == FrameType::kRead)
+                            {
+                                config.pinMode = PinMode::kInput;
+                            }
+                            else if (r.type == FrameType::kWrite)
+                            {
+                                config.pinMode = PinMode::kOutput;
+                            }
+                            else
+                            {
+                                return false;
+                            }
 
-                                return (config.pinMode == PinMode::kInput || config.pinMode == PinMode::kOutput);
-                            });
-                    });
+                            return (config.pinMode == PinMode::kInput || config.pinMode == PinMode::kOutput);
+                        });
+                });
         }
     };
 
@@ -75,25 +76,15 @@ void DigitalPinSession::init()
 
 void DigitalPinSession::handleRequest(const Frame::RequestFrame &request)
 {
-
     if (config_.pinMode == PinMode::kInput)
     {
-        if (responseQueue_ == nullptr)
-        {
-            return;
-        }
-        Frame::ResponseFrame response{
-            .request_id = request.request_id,
-            .value = 0,
-            .type = FrameType::kResponse,
-            .error = ErrorCode::kNone,
-        };
-        response.value = static_cast<uint16_t>(digitalReadFast(pinNumber_));
-        xQueueSend(responseQueue_, &response, portMAX_DELAY);
+        sendOkResponse(request.request_id, static_cast<uint16_t>(digitalReadFast(pinNumber_)));
     }
     else if (config_.pinMode == PinMode::kOutput)
     {
-        digitalWriteFast(pinNumber_, request.value ? HIGH : LOW);
+        const uint16_t appliedValue = request.value == 0 ? 0 : 1;
+        digitalWriteFast(pinNumber_, appliedValue == 0 ? LOW : HIGH);
+        sendOkResponse(request.request_id, appliedValue);
     }
 }
 
@@ -101,5 +92,5 @@ PinModeConfig DigitalPinSession::pinConfigFromRequest(const Frame::RequestFrame 
 {
     return PinModeConfig{
         .pinType = request.pin_type,
-    .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
+        .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
 }

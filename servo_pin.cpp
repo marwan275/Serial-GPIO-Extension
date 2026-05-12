@@ -68,11 +68,12 @@ void ServoPinSession::init()
 void ServoPinSession::handleRequest(const Frame::RequestFrame &request)
 {
     servo_motor_.write(request.value);
+    sendOkResponse(request.request_id, request.value);
 }
 
 PinModeConfig ServoPinSession::pinConfigFromRequest(const Frame::RequestFrame &request) const
 {
     return PinModeConfig{
         .pinType = request.pin_type,
-    .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
+        .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
 }

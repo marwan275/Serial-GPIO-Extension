@@ -87,8 +87,8 @@ Current session mapping:
 
 ## Important current limitations
 
-- Successful digital, analog-output, and servo writes do not produce a firmware response frame (fire and forget). Only read operations and explicit errors currently emit serial responses.
-- The ROS 2 server therefore treats writes as successful as soon as the host enqueues the request; there is no end-to-end acknowledgement from the Teensy for a successful write.
+- Successful reads and writes both produce a firmware response frame. Reads return the sampled value, while writes return the value that was actually applied by the session.
+- High-priority requests can supersede older queued requests for the same pin session. Discarded queued requests now emit `ErrorCode::kCancelled` so the host can distinguish supersession from a transport timeout.
 - Analog sessions currently differentiate only between input mode and output mode; they do not carry per-session frequency or resolution settings.
 - `FrameType::kDebug` exists for outbound debug traffic, but inbound debug requests are not part of the dispatcher request semantics.
 
@@ -124,6 +124,41 @@ Current host-side roles:
 - `teensy_serial_handler.py` owns serial-port discovery, send, and receive buffering.
 - `node_example.py`, `ping_node.py`, and `brust_test.py` are example or diagnostic ROS nodes.
 
+## SGPIO server runtime
+
+`API/sgpio_server.py` is now a response-driven action server rather than a fire-and-forget write bridge.
+
+Startup flow:
+
+1. `GpioServer` creates the ROS 2 `ActionServer` for `sgpio/frame`.
+2. It opens the Teensy serial connection through `TeensySerialHandler`.
+3. It starts one sender worker (`SGPIOFrameSender`) and one receiver worker (`SGPIOFrameReceiver`).
+4. It also starts a local `_receiver_loop` thread that consumes decoded `ResponseFrame` objects and matches them back to waiting ROS goals.
+
+Per-request flow:
+
+1. `execute_callback` converts the incoming ROS action goal into a serial `RequestFrame`.
+2. The server allocates its own serial request ID with `_allocate_serial_id()` for every request, including writes.
+3. It creates a `threading.Event` and stores `(goal_handle, completion_event)` in `serial_id_map`, keyed by that serial request ID.
+4. The request frame is queued to `SGPIOFrameSender`, which serializes it onto USB serial.
+5. `execute_callback` then blocks on the event for up to 2 seconds instead of immediately succeeding writes.
+6. When the Teensy sends back a `ResponseFrame`, `_receiver_loop` looks up the matching pending request by `response.request_id`, attaches the response to the goal handle, and sets the event.
+7. `execute_callback` resumes, builds the `GpioFrame.Result`, and completes the action based on the firmware response.
+
+Current completion semantics:
+
+- `ErrorCode.NONE` means the request reached the device and executed successfully. For reads, `result_value` is the sampled value. For writes, `result_value` is the value actually applied by the firmware.
+- `ErrorCode.CANCELLED` means the request was accepted earlier but later discarded on the device when a higher-priority request cleared that pin session's queue.
+- Any other error code is returned as an action failure.
+- A missing response within 2 seconds is treated as a timeout and the action is aborted.
+
+This means the host no longer treats writes as successful when they are merely enqueued. A write action now completes only after the Teensy reports either success or an explicit error.
+
+Shutdown flow:
+
+- `destroy_node()` sets the stop token, destroys the action server, joins the sender thread, joins the frame receiver thread, joins the local response-matching thread, and then disconnects the serial port.
+- This keeps teardown ordered so background workers stop before the serial transport is closed.
+
 ## Action contract
 
 `API/action/GpioFrame.action` currently exposes:
@@ -131,5 +166,5 @@ Current host-side roles:
 - Goal fields: `client_id`, `request_id`, `type`, `pin_type`, `priority`, `pin_number`, `value`
 - Result fields: `success`, `result_value`, `error_code`, `message`
 
-The server currently allocates its own serial request ID for reads and waits for a matching serial response before completing the action.
+The server currently allocates its own serial request ID for every request and waits for a matching serial response before completing the action. Responses are correlated only by the server-managed serial request ID, not by the original ROS action `request_id` field.
 

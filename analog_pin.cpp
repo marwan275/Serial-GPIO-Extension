@@ -9,31 +9,32 @@ namespace
     {
         AnalogPinFactoryRegistrar()
         {
-                static constexpr UBaseType_t kRequestQueueDepth = 1024;
-                static constexpr uint16_t kWorkerStackDepth = 256;
-                static constexpr char kWorkerName[] = "AnalogPin";
+            static constexpr UBaseType_t kRequestQueueDepth = 1024;
+            static constexpr uint16_t kWorkerStackDepth = 256;
+            static constexpr char kWorkerName[] = "AnalogPin";
 
-                PinSessionFactory::registerFactory(
-                    PinType::kAnalog,
-                    [](const Frame::RequestFrame &request, QueueHandle_t globalResponseQueue) -> std::unique_ptr<PinSession>
-                    {
-                        return PinSessionFactory::makeSessionWithResources<AnalogPinSession>(
-                            request, globalResponseQueue, kRequestQueueDepth, kWorkerStackDepth, kWorkerName,
-                            [](const Frame::RequestFrame &r, PinModeConfig &config) -> bool {
-                                config.pinType = r.pin_type;
+            PinSessionFactory::registerFactory(
+                PinType::kAnalog,
+                [](const Frame::RequestFrame &request, QueueHandle_t globalResponseQueue) -> std::unique_ptr<PinSession>
+                {
+                    return PinSessionFactory::makeSessionWithResources<AnalogPinSession>(
+                        request, globalResponseQueue, kRequestQueueDepth, kWorkerStackDepth, kWorkerName,
+                        [](const Frame::RequestFrame &r, PinModeConfig &config) -> bool
+                        {
+                            config.pinType = r.pin_type;
 
-                                if (r.type == FrameType::kRead)
-                                {
-                                    config.pinMode = PinMode::kInput;
-                                }
-                                else if (r.type == FrameType::kWrite)
-                                {
-                                    config.pinMode = PinMode::kOutput;
-                                }
+                            if (r.type == FrameType::kRead)
+                            {
+                                config.pinMode = PinMode::kInput;
+                            }
+                            else if (r.type == FrameType::kWrite)
+                            {
+                                config.pinMode = PinMode::kOutput;
+                            }
 
-                                return (config.pinMode == PinMode::kInput || config.pinMode == PinMode::kOutput);
-                            });
-                    });
+                            return (config.pinMode == PinMode::kInput || config.pinMode == PinMode::kOutput);
+                        });
+                });
         }
     };
 
@@ -65,26 +66,14 @@ void AnalogPinSession::init()
 
 void AnalogPinSession::handleRequest(const Frame::RequestFrame &request)
 {
-    if (responseQueue_ == nullptr)
-    {
-        return;
-    }
-
-    Frame::ResponseFrame response{
-        .request_id = request.request_id,
-        .value = 0,
-        .type = FrameType::kResponse,
-        .error = ErrorCode::kNone,
-    };
-
     if (config_.pinMode == PinMode::kInput)
     {
-        response.value = static_cast<uint16_t>(analogRead(pinNumber_));
-        xQueueSend(responseQueue_, &response, portMAX_DELAY);
+        sendOkResponse(request.request_id, static_cast<uint16_t>(analogRead(pinNumber_)));
     }
     else
     {
         analogWrite(pinNumber_, request.value);
+        sendOkResponse(request.request_id, request.value);
     }
 }
 
@@ -92,5 +81,5 @@ PinModeConfig AnalogPinSession::pinConfigFromRequest(const Frame::RequestFrame &
 {
     return PinModeConfig{
         .pinType = request.pin_type,
-    .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
+        .pinMode = request.type == FrameType::kRead ? PinMode::kInput : PinMode::kOutput};
 }
